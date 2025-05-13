@@ -1,0 +1,68 @@
+# -*- coding: utf-8 -*-
+from picamera.array import PiRGBArray
+from picamera import PiCamera
+import time
+import cv2
+import numpy as np
+from AlphaBotControl import AlphaBot  #
+
+# Initialize robot control
+robot = AlphaBot()
+
+# Distance control parameters
+target_radius = 90 # target size of circle
+tolerance = 5       # tolerance in pixels
+
+# Initialize camera
+camera = PiCamera()
+camera.resolution = (640, 480)
+camera.framerate = 32
+rawCapture = PiRGBArray(camera, size=(640, 480))
+time.sleep(0.1)
+
+for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+    image = frame.array
+    output = image.copy()
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    gray = cv2.medianBlur(gray, 5)
+
+    # Circle detection
+    circles = cv2.HoughCircles(
+        gray, cv2.cv.CV_HOUGH_GRADIENT, dp=1.2, minDist=100,
+        param1=50, param2=30, minRadius=10, maxRadius=100
+    )
+
+    if circles is not None:
+        circles = np.round(circles[0, :]).astype("int")
+        largest_circle = max(circles, key=lambda c: c[2])
+        x, y, r = largest_circle
+
+        cv2.circle(output, (x, y), r, (0, 255, 0), 4)
+        cv2.circle(output, (x, y), 3, (255, 0, 0), 2)
+        cv2.putText(output, "x={}, y={}, r={}".format(x, y, r), (x, y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        print("Detected circle radius: {}".format(r))
+
+        # Distance control logic implement here
+
+
+
+
+        
+    else:
+        print "No circle detected. Stop."
+        robot.stop()
+
+    # Show images
+   # cv2.imshow("Frame", image)
+   # cv2.imshow("Gray", gray)
+    cv2.imshow("Detected Circles", output)
+    time.sleep(0.1)
+    key = cv2.waitKey(1) & 0xFF
+    rawCapture.truncate(0)
+    if key == ord("q"):
+        robot.stop()
+        break
+
+cv2.destroyAllWindows()
+
